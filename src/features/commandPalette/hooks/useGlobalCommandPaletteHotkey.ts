@@ -5,6 +5,13 @@ export type UseGlobalCommandPaletteHotkeyArgs = {
   enabled?: boolean;
 };
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return true;
+  return target.isContentEditable;
+}
+
 export function useGlobalCommandPaletteHotkey({
   onTrigger,
   enabled = true,
@@ -13,6 +20,8 @@ export function useGlobalCommandPaletteHotkey({
     if (!enabled) return;
 
     const handler = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
+
       if (e.isComposing) return;
 
       if (e.key.toLowerCase() !== "k") return;

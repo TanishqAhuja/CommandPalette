@@ -121,6 +121,7 @@ Hotkey behavior (exact):
 
 - Triggers when `e.key` is `"k"` (case-insensitive) and **either** `Ctrl` or `Meta` is pressed.
 - It intentionally allows both `Ctrl+K` and `Cmd+K` regardless of platform.
+- Hotkey will not hijack typing - will not trigger inside an input/textarea/contenteditable (can break forms/editors).
 
 ## Defining commands
 

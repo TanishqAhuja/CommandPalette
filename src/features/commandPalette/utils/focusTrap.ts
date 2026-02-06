@@ -28,9 +28,12 @@ export function activateFocusTrap(
 
     return Array.from(
       container.querySelectorAll<HTMLElement>(selectors),
-    ).filter(
-      (el) => !el.hasAttribute("disabled") && !el.getAttribute("aria-hidden"),
-    );
+    ).filter((el) => {
+      if (el.hasAttribute("disabled")) return false;
+      if (el.getAttribute("aria-hidden") === "true") return false;
+      if (el.getAttribute("tabindex") === "-1") return false; // <-- key line
+      return true;
+    });
   };
 
   const focusFirst = () => {

@@ -54,6 +54,7 @@ export function CommandPalette({
   const headingId = useId();
   const descId = useId();
   const listboxId = useId();
+  const inputId = useId();
 
   // refs
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -147,12 +148,12 @@ export function CommandPalette({
         </div>
 
         <div className="px-4 py-3">
-          <label htmlFor="cp-input" className="sr-only">
+          <label htmlFor={inputId} className="sr-only">
             Search commands
           </label>
 
           <input
-            id="cp-input"
+            id={inputId}
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}

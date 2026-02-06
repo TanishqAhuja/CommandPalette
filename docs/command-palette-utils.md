@@ -7,93 +7,6 @@ This document covers:
 - Keyboard behavior (`hooks/useCommandPalette.ts`)
 - Accessibility semantics in the UI (`components/CommandPalette.tsx`)
 
-<!-- ## 1) Fuzzy search
-
-File: `commandPalette/utils/fuzzySearch.ts`
-
-### Public API
-
-```ts
-export function normalize(text: string): string;
-
-export function searchCommands(
-  query: string,
-  commands: Command[],
-  limit?: number,
-): SearchResult[];
-```
-
-### Normalization (exact)
-
-`normalize(text)`:
-
-- lowercases
-- trims
-- collapses internal whitespace to a single space
-
-```ts
-text.toLowerCase().trim().replace(/\s+/g, " ");
-```
-
-### Indexing
-
-Search builds a normalized index for each command:
-
-- `normalizedTitle`
-- `normalizedKeywords` (keywords joined with `" "`)
-- `normalizedHaystack` (title + keywords)
-
-Note: `normalizedHaystack` is currently computed but **not used** in scoring.
-
-### Matching model
-
-Matching uses **subsequence** logic:
-
-A query matches a candidate string if each query character appears in order in the candidate. Characters do not need to be adjacent.
-
-If any character cannot be found in sequence, the score is `0`.
-
-### Scoring
-
-The overall score is a weighted sum:
-
-- title score: 0.7
-- keyword score: 0.3
-
-```ts
-titleScore * 0.7 + keywordScore * 0.3;
-```
-
-`scoreSubsequence(query, candidate)` produces 0..1 using:
-
-- **Base score** (earlier first match scores higher)
-- **Contiguity bonus** (if consecutive matches are within 2 positions)
-- **Length bonus**
-  - `0.3` if query length equals candidate length
-  - otherwise up to `0.1` based on `queryLen / candidateLen`
-
-Scores are capped:
-
-```ts
-Math.min(1, baseScore + contiguityBonus + lengthBonus);
-```
-
-#### Accuracy notes
-
-- The contiguity logic tracks a `consecutiveCount` that reflects the final streak encountered in the loop, not necessarily the maximum streak. This is fine for basic ranking but matters if you later add match highlighting or more nuanced ranking.
-- `searchCommands` sorts `commands` in-place when the query is empty because it calls `commands.sort(...)`. If the caller reuses the same array elsewhere, that order will be mutated.
-
-### Sorting and stability
-
-Non-empty query:
-
-- sort by `score` (descending)
-- tie-break by `command.id` (ascending)
-
-Empty query:
-
-- return all commands sorted by `id`, score is `0`. -->
-
 ## 1) Fuzzy search
 
 File: `commandPalette/utils/fuzzySearch.ts`
@@ -174,10 +87,11 @@ Each token is scored against both title and keywords:
 - title weight: 0.7
 - keyword weight: 0.3
 
-The final score is computed using:
+The final score is computed as:
 
-- average token relevance score
-- token coverage bonus (commands matching more tokens rank higher)
+- average token score across all tokens
+
+Tokens that do not match contribute `0`, so commands matching more tokens naturally rank higher without requiring a separate coverage bonus.
 
 The default scoring config is:
 
@@ -190,9 +104,6 @@ The default scoring config is:
   substringScore: 0.8,
 
   maxSubsequenceScore: 0.6,
-
-  coverageWeight: 0.15,
-  relevanceWeight: 0.85,
 }
 ```
 
@@ -211,7 +122,7 @@ Empty query:
 
 ### Immutability guarantee
 
-`searchCommands` never mutates the input `commands` array (including the empty query case). It always sorts a copy."
+`searchCommands` never mutates the input `commands` array (including the empty query case). It always sorts a copy.
 
 ## 2) Focus trap
 
@@ -253,8 +164,8 @@ Focusable candidates inside the container:
 
 Filtered by:
 
-- must not have `disabled`
-- must not have an `aria-hidden` attribute **at all** (the code checks `!el.getAttribute("aria-hidden")`, so even `aria-hidden="false"` is treated as present and will be filtered out)
+- must not have `disabled`.
+- must not have an `aria-hidden="true"` attribute.
 
 ### Interaction with CommandPalette option buttons
 

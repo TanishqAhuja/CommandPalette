@@ -22,17 +22,6 @@ export type SearchWeights = {
    * Keeps subsequence from beating substring/prefix.
    */
   maxSubsequenceScore: number;
-
-  /**
-   * Token coverage contribution to final score.
-   * Example: if query has 3 tokens and 2 match, coverage = 2/3.
-   */
-  coverageWeight: number;
-
-  /**
-   * Main relevance contribution to final score.
-   */
-  relevanceWeight: number;
 };
 
 const DEFAULT_WEIGHTS: SearchWeights = {
@@ -43,9 +32,6 @@ const DEFAULT_WEIGHTS: SearchWeights = {
   substringScore: 0.8,
 
   maxSubsequenceScore: 0.6,
-
-  coverageWeight: 0.15,
-  relevanceWeight: 0.85,
 };
 
 function clamp01(value: number): number {
@@ -95,10 +81,6 @@ function tokenize(query: string): string[] {
 /**
  * Linear subsequence scoring (fallback only).
  *
- * This does NOT try to be "smart" fuzzy search.
- * It's intentionally simple: "gco" should match "git checkout"
- * but score lower than substring/prefix matches.
- *
  * Returns [0..maxScore].
  */
 function scoreSubsequence(
@@ -124,8 +106,7 @@ function scoreSubsequence(
   if (tokenIdx !== token.length) return 0;
   if (firstMatchIndex === -1) return 0;
 
-  // Earlier match = slightly better.
-  // Keep it simple and bounded.
+  // Earlier match = better score.
   const positionFactor = 1 - firstMatchIndex / candidate.length;
 
   return clamp01(positionFactor) * maxScore;
@@ -134,7 +115,7 @@ function scoreSubsequence(
 /**
  * Score a single token against a candidate string.
  *
- * Option B ranking:
+ * Ranking:
  * - prefix dominates
  * - substring dominates
  * - subsequence fallback only
@@ -185,10 +166,10 @@ function scoreToken(
 }
 
 /**
- * Score a query (multiple tokens) against a command.
+ * Score query tokens against a command.
  *
- * - We do NOT require all tokens to match.
- * - But commands that match more tokens score higher via coverage bonus.
+ * Final score = average token score.
+ * Tokens that don't match contribute 0, so partial matches rank lower naturally.
  */
 function scoreQueryTokens(
   tokens: string[],
@@ -197,22 +178,13 @@ function scoreQueryTokens(
 ): number {
   if (tokens.length === 0) return 0;
 
-  let matchedTokens = 0;
   let sum = 0;
 
   for (const token of tokens) {
-    const s = scoreToken(token, indexed, weights);
-    if (s > 0) matchedTokens++;
-    sum += s;
+    sum += scoreToken(token, indexed, weights);
   }
 
-  const avg = sum / tokens.length;
-  const coverage = matchedTokens / tokens.length;
-
-  const finalScore =
-    avg * weights.relevanceWeight + coverage * weights.coverageWeight;
-
-  return clamp01(finalScore);
+  return clamp01(sum / tokens.length);
 }
 
 /**
