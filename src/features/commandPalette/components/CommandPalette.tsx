@@ -59,6 +59,9 @@ export function CommandPalette({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // scrolling refs (no state, no rerenders)
+  const optionRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
   // Focus trap + restore focus
   useEffect(() => {
     if (!isOpen) return;
@@ -91,6 +94,22 @@ export function CommandPalette({
   const activeDescendantId = activeOption
     ? optionId(activeOption.id)
     : undefined;
+
+  /**
+   * Ensure active option is always visible when navigating with ArrowUp/ArrowDown.
+   * This prevents "selection moving behind the scroll viewport".
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!activeOption) return;
+
+    const el = optionRefs.current.get(activeOption.id);
+    if (!el) return;
+
+    queueMicrotask(() => {
+      el.scrollIntoView({ block: "nearest" });
+    });
+  }, [activeOption, isOpen]);
 
   if (!isOpen) return null;
 
@@ -166,9 +185,17 @@ export function CommandPalette({
                 return (
                   <button
                     key={cmd.id}
+                    ref={(el) => {
+                      if (!el) {
+                        optionRefs.current.delete(cmd.id);
+                        return;
+                      }
+                      optionRefs.current.set(cmd.id, el);
+                    }}
                     id={optionId(cmd.id)}
                     role="option"
                     aria-selected={isActive}
+                    tabIndex={-1}
                     type="button"
                     onClick={() => executeById(cmd.id)}
                     className={[
