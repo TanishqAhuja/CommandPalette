@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -87,6 +87,12 @@ function pressCmdK() {
 }
 
 describe("CommandPalette integration", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    document.body.innerHTML = "";
+  });
+
   it("opens on Ctrl+K", async () => {
     render(<TestApp commands={testCommands} />);
 
@@ -98,7 +104,6 @@ describe("CommandPalette integration", () => {
   });
 
   it("opens on Cmd+K (macOS only)", async () => {
-    // HappyDOM is usually not Mac, so metaKey won't trigger unless we mock.
     vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
 
     render(<TestApp commands={testCommands} />);
@@ -122,9 +127,7 @@ describe("CommandPalette integration", () => {
       name: /search commands/i,
     });
 
-    await waitFor(() => {
-      expect(input).toHaveFocus();
-    });
+    await waitFor(() => expect(input).toHaveFocus());
   });
 
   it("typing filters results and ranks expected command first", async () => {
@@ -138,9 +141,7 @@ describe("CommandPalette integration", () => {
       name: /search commands/i,
     });
 
-    await waitFor(() => {
-      expect(input).toHaveFocus();
-    });
+    await waitFor(() => expect(input).toHaveFocus());
 
     await user.type(input, "commit");
 
@@ -162,9 +163,7 @@ describe("CommandPalette integration", () => {
       name: /search commands/i,
     });
 
-    await waitFor(() => {
-      expect(input).toHaveFocus();
-    });
+    await waitFor(() => expect(input).toHaveFocus());
 
     const listbox = screen.getByRole("listbox", { name: /command results/i });
 
@@ -209,7 +208,6 @@ describe("CommandPalette integration", () => {
 
     const afterButton = screen.getByRole("button", { name: "After" });
     afterButton.focus();
-
     expect(afterButton).toHaveFocus();
 
     pressCtrlK();
@@ -218,9 +216,7 @@ describe("CommandPalette integration", () => {
       name: /search commands/i,
     });
 
-    await waitFor(() => {
-      expect(input).toHaveFocus();
-    });
+    await waitFor(() => expect(input).toHaveFocus());
 
     await user.keyboard("{Escape}");
 
@@ -232,44 +228,29 @@ describe("CommandPalette integration", () => {
   });
 
   it("traps focus inside dialog when open (Tab cycling)", async () => {
-    // Happy-dom + fake timers + tabbing is flaky.
-    // Run this one test in real timers to stabilize focus movement + microtasks.
-    vi.useRealTimers();
-
     const user = userEvent.setup();
 
     render(<TestApp commands={testCommands} />);
 
     pressCtrlK();
 
-    const input = screen.getByRole("combobox", { name: /search commands/i });
+    const input = await screen.findByRole("combobox", {
+      name: /search commands/i,
+    });
 
-    // queueMicrotask() focus needs a tick; don't assume sync focus
     await waitFor(() => expect(input).toHaveFocus());
 
-    // Tabbing order in your DOM: input -> option[0] -> option[1] -> option[2] -> Close -> wraps to input
-    const getOptions = () => screen.getAllByRole("option");
-    const getClose = () => screen.getByRole("button", { name: /^close$/i });
+    const closeBtn = screen.getByRole("button", { name: /^close$/i });
+
+    // Correct combobox pattern: options are NOT tabbable (tabIndex=-1)
+    await user.tab();
+    expect(closeBtn).toHaveFocus();
 
     await user.tab();
-    await waitFor(() => expect(getOptions()[0]).toHaveFocus());
+    expect(input).toHaveFocus();
 
-    await user.tab();
-    await waitFor(() => expect(getOptions()[1]).toHaveFocus());
-
-    await user.tab();
-    await waitFor(() => expect(getOptions()[2]).toHaveFocus());
-
-    await user.tab();
-    await waitFor(() => expect(getClose()).toHaveFocus());
-
-    // Wrap
-    await user.tab();
-    await waitFor(() => expect(input).toHaveFocus());
-
-    // Reverse wrap
     await user.tab({ shift: true });
-    await waitFor(() => expect(getClose()).toHaveFocus());
+    expect(closeBtn).toHaveFocus();
   });
 
   it("clicking an option executes it (mouse support)", async () => {
@@ -296,5 +277,65 @@ describe("CommandPalette integration", () => {
     expect(
       await screen.findByText("Would navigate to Settings"),
     ).toBeInTheDocument();
+  });
+
+  it("closes when clicking the overlay background", async () => {
+    const user = userEvent.setup();
+
+    render(<TestApp commands={testCommands} />);
+
+    pressCtrlK();
+    await screen.findByRole("dialog", { name: /command palette/i });
+
+    const overlay = screen.getByTestId("cp-overlay");
+    await user.pointer([{ target: overlay, keys: "[MouseLeft]" }]);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: /command palette/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes when clicking the Close button (CTA)", async () => {
+    const user = userEvent.setup();
+
+    render(<TestApp commands={testCommands} />);
+
+    pressCtrlK();
+
+    // ensure open
+    await screen.findByRole("dialog", { name: /command palette/i });
+
+    const closeBtn = screen.getByRole("button", { name: /^close$/i });
+    await user.click(closeBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: /command palette/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows empty state when no results match the query", async () => {
+    const user = userEvent.setup();
+
+    render(<TestApp commands={testCommands} />);
+
+    pressCtrlK();
+
+    const input = await screen.findByRole("combobox", {
+      name: /search commands/i,
+    });
+
+    await waitFor(() => expect(input).toHaveFocus());
+
+    await user.type(input, "zzzzzzzzzzzz");
+
+    expect(screen.getByText(/no commands found/i)).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("listbox", { name: /command results/i }),
+    ).not.toBeInTheDocument();
   });
 });

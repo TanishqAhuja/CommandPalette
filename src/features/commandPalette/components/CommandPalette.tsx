@@ -116,11 +116,14 @@ export function CommandPalette({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center px-4 py-10"
-      onMouseDown={onOverlayMouseDown}
       aria-hidden={false}
     >
       {/* overlay */}
-      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="absolute inset-0 bg-black/40"
+        onMouseDown={onOverlayMouseDown}
+        data-testid="cp-overlay"
+      />
 
       {/* dialog */}
       <div
