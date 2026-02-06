@@ -4,11 +4,54 @@ import type { Command, SearchResult } from "../commandPalette.types";
  * Normalized command with pre-computed searchable fields.
  * Avoids repeated normalization during scoring.
  */
-interface IndexedCommand {
+export interface IndexedCommand {
   command: Command;
   normalizedTitle: string;
   normalizedKeywords: string;
-  normalizedHaystack: string; // title + " " + keywords for combined search
+}
+
+export type SearchWeights = {
+  titleWeight: number;
+  keywordWeight: number;
+
+  prefixScore: number;
+  substringScore: number;
+
+  /**
+   * Max score allowed from subsequence fallback.
+   * Keeps subsequence from beating substring/prefix.
+   */
+  maxSubsequenceScore: number;
+
+  /**
+   * Token coverage contribution to final score.
+   * Example: if query has 3 tokens and 2 match, coverage = 2/3.
+   */
+  coverageWeight: number;
+
+  /**
+   * Main relevance contribution to final score.
+   */
+  relevanceWeight: number;
+};
+
+const DEFAULT_WEIGHTS: SearchWeights = {
+  titleWeight: 0.7,
+  keywordWeight: 0.3,
+
+  prefixScore: 1.0,
+  substringScore: 0.8,
+
+  maxSubsequenceScore: 0.6,
+
+  coverageWeight: 0.15,
+  relevanceWeight: 0.85,
+};
+
+function clamp01(value: number): number {
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
 }
 
 /**
@@ -25,96 +68,151 @@ export function normalize(text: string): string {
  * Build an index of normalized commands.
  * Pre-computing normalized fields avoids repeated allocations in searchCommands.
  */
-function buildCommandIndex(commands: Command[]): IndexedCommand[] {
-  return commands.map((command) => ({
-    command,
-    normalizedTitle: normalize(command.title),
-    normalizedKeywords: normalize(command.keywords.join(" ")),
-    normalizedHaystack: `${normalize(command.title)} ${normalize(command.keywords.join(" "))}`,
-  }));
+export function buildCommandIndex(commands: Command[]): IndexedCommand[] {
+  return commands.map((command) => {
+    const normalizedTitle = normalize(command.title);
+    const normalizedKeywords = normalize(command.keywords.join(" "));
+
+    return {
+      command,
+      normalizedTitle,
+      normalizedKeywords,
+    };
+  });
 }
 
 /**
- * Calculate relevance score for a query against a candidate string.
- *
- * Scoring logic:
- * - Subsequence matching: looks for query characters in order within the candidate
- * - Title bias: matches in title (first arg) weighted at 0.7, keywords at 0.3
- * - Position bonus: earlier matches in the string score higher
- * - Contiguity bonus: consecutive matches score higher than scattered matches
- *
- * Returns 0 for no match, up to 1 for perfect/early matches.
+ * Split query into tokens.
+ * Example: "git   com" -> ["git", "com"]
  */
-function score(
-  query: string,
-  titleCandidate: string,
-  keywordCandidate: string,
+function tokenize(query: string): string[] {
+  return query
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Linear subsequence scoring (fallback only).
+ *
+ * This does NOT try to be "smart" fuzzy search.
+ * It's intentionally simple: "gco" should match "git checkout"
+ * but score lower than substring/prefix matches.
+ *
+ * Returns [0..maxScore].
+ */
+function scoreSubsequence(
+  token: string,
+  candidate: string,
+  maxScore: number,
 ): number {
-  if (!query) return 0;
+  if (!token) return 0;
+  if (token.length > candidate.length) return 0;
 
-  // Score title match
-  const titleScore = scoreSubsequence(query, titleCandidate);
+  let tokenIdx = 0;
+  let firstMatchIndex = -1;
 
-  // Score keywords match
-  const keywordScore = scoreSubsequence(query, keywordCandidate);
-
-  // Weighted combination: title is more important
-  return titleScore * 0.7 + keywordScore * 0.3;
-}
-
-/**
- * Score a subsequence match within a single string.
- * Returns a score from 0 (no match) to 1 (perfect match at start).
- *
- * Bonuses:
- * - Early matches: character position influences score
- * - Contiguous matches: consecutive character matches score higher
- */
-function scoreSubsequence(query: string, candidate: string): number {
-  const queryLen = query.length;
-  const candidateLen = candidate.length;
-
-  if (queryLen === 0) return 0;
-  if (queryLen > candidateLen) return 0;
-
-  // Find all matching positions
-  const matches: number[] = [];
-  let candidateIdx = 0;
-
-  for (let queryIdx = 0; queryIdx < queryLen; queryIdx++) {
-    const foundIdx = candidate.indexOf(query[queryIdx], candidateIdx);
-    if (foundIdx === -1) return 0; // No match for this query character
-
-    matches.push(foundIdx);
-    candidateIdx = foundIdx + 1;
-  }
-
-  // Calculate base match score (higher if match appears early)
-  const firstMatchPos = matches[0];
-  const baseScore = Math.max(0, 1 - firstMatchPos / (candidateLen * 0.5));
-
-  // Contiguity bonus: consecutive matches within 2 positions
-  let contiguityBonus = 0;
-  let consecutiveCount = 1;
-
-  for (let i = 1; i < matches.length; i++) {
-    if (matches[i] - matches[i - 1] <= 2) {
-      consecutiveCount++;
-    } else {
-      consecutiveCount = 1;
+  for (let i = 0; i < candidate.length && tokenIdx < token.length; i++) {
+    if (candidate[i] === token[tokenIdx]) {
+      if (firstMatchIndex === -1) {
+        firstMatchIndex = i;
+      }
+      tokenIdx++;
     }
   }
 
-  // Bonus scales with how many characters match consecutively
-  contiguityBonus = (consecutiveCount / queryLen) * 0.2;
+  if (tokenIdx !== token.length) return 0;
+  if (firstMatchIndex === -1) return 0;
 
-  // Length match bonus: perfect substring match gets max score
-  const lengthBonus =
-    queryLen === candidateLen
-      ? 0.3
-      : Math.min(0.1, (queryLen / candidateLen) * 0.1);
+  // Earlier match = slightly better.
+  // Keep it simple and bounded.
+  const positionFactor = 1 - firstMatchIndex / candidate.length;
 
-  return Math.min(1, baseScore + contiguityBonus + lengthBonus);
+  return clamp01(positionFactor) * maxScore;
+}
+
+/**
+ * Score a single token against a candidate string.
+ *
+ * Option B ranking:
+ * - prefix dominates
+ * - substring dominates
+ * - subsequence fallback only
+ */
+function scoreTokenAgainstCandidate(
+  token: string,
+  candidate: string,
+  weights: SearchWeights,
+): number {
+  if (!token) return 0;
+  if (!candidate) return 0;
+
+  if (candidate.startsWith(token)) {
+    return weights.prefixScore;
+  }
+
+  if (candidate.includes(token)) {
+    return weights.substringScore;
+  }
+
+  return scoreSubsequence(token, candidate, weights.maxSubsequenceScore);
+}
+
+/**
+ * Score a token against a command (title + keywords).
+ */
+function scoreToken(
+  token: string,
+  indexed: IndexedCommand,
+  weights: SearchWeights,
+): number {
+  const titleScore = scoreTokenAgainstCandidate(
+    token,
+    indexed.normalizedTitle,
+    weights,
+  );
+
+  const keywordScore = scoreTokenAgainstCandidate(
+    token,
+    indexed.normalizedKeywords,
+    weights,
+  );
+
+  const combined =
+    titleScore * weights.titleWeight + keywordScore * weights.keywordWeight;
+
+  return clamp01(combined);
+}
+
+/**
+ * Score a query (multiple tokens) against a command.
+ *
+ * - We do NOT require all tokens to match.
+ * - But commands that match more tokens score higher via coverage bonus.
+ */
+function scoreQueryTokens(
+  tokens: string[],
+  indexed: IndexedCommand,
+  weights: SearchWeights,
+): number {
+  if (tokens.length === 0) return 0;
+
+  let matchedTokens = 0;
+  let sum = 0;
+
+  for (const token of tokens) {
+    const s = scoreToken(token, indexed, weights);
+    if (s > 0) matchedTokens++;
+    sum += s;
+  }
+
+  const avg = sum / tokens.length;
+  const coverage = matchedTokens / tokens.length;
+
+  const finalScore =
+    avg * weights.relevanceWeight + coverage * weights.coverageWeight;
+
+  return clamp01(finalScore);
 }
 
 /**
@@ -122,47 +220,53 @@ function scoreSubsequence(query: string, candidate: string): number {
  * Optional limit caps the number of results returned.
  *
  * Empty query returns all commands sorted by id.
+ *
+ * NOTE: This function does NOT mutate input arrays.
  */
 export function searchCommands(
   query: string,
   commands: Command[],
   limit?: number,
+  config?: {
+    indexedCommands?: IndexedCommand[];
+    weights?: Partial<SearchWeights>;
+  },
 ): SearchResult[] {
   const normalizedQuery = normalize(query);
 
   // Empty query: return all, sorted by id
   if (!normalizedQuery) {
-    return commands
+    return [...commands]
       .sort((a, b) => a.id.localeCompare(b.id))
       .slice(0, limit)
       .map((command) => ({
         command,
-        score: 0, // No score for empty query
+        score: 0,
       }));
   }
 
-  // Build index once
-  const index = buildCommandIndex(commands);
+  const weights: SearchWeights = {
+    ...DEFAULT_WEIGHTS,
+    ...(config?.weights ?? {}),
+  };
 
-  // Score all commands
-  const results = index
-    .map(({ command, normalizedTitle, normalizedKeywords }) => ({
-      command,
-      score: score(normalizedQuery, normalizedTitle, normalizedKeywords),
+  const tokens = tokenize(normalizedQuery);
+  if (tokens.length === 0) return [];
+
+  // Reuse cached index if caller provides it (recommended for keystroke usage)
+  const indexedCommands =
+    config?.indexedCommands ?? buildCommandIndex(commands);
+
+  const results: SearchResult[] = indexedCommands
+    .map((indexed) => ({
+      command: indexed.command,
+      score: scoreQueryTokens(tokens, indexed, weights),
     }))
-    .filter(({ score: s }) => s > 0) // Only keep matches
+    .filter((r) => r.score > 0)
     .sort((a, b) => {
-      // Sort by score (desc), then by id (asc)
-      if (a.score !== b.score) {
-        return b.score - a.score;
-      }
+      if (a.score !== b.score) return b.score - a.score;
       return a.command.id.localeCompare(b.command.id);
     });
 
-  // Apply limit if provided
-  if (limit !== undefined) {
-    return results.slice(0, limit);
-  }
-
-  return results;
+  return limit !== undefined ? results.slice(0, limit) : results;
 }

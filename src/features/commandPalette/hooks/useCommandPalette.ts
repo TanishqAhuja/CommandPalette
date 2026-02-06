@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Command, SearchResult } from "../commandPalette.types";
-import { searchCommands } from "../utils/fuzzySearch";
+import { buildCommandIndex, searchCommands } from "../utils/fuzzySearch";
 
 export type UseCommandPaletteOptions = {
   resultLimit?: number;
@@ -53,10 +53,15 @@ export function useCommandPalette({
   const [query, setQueryState] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const results = useMemo<SearchResult[]>(() => {
+  const indexedCommands = useMemo(
+    () => buildCommandIndex(commands),
+    [commands],
+  );
+
+  const results = useMemo(() => {
     if (!isOpen) return [];
-    return searchCommands(query, commands, resultLimit);
-  }, [commands, isOpen, query, resultLimit]);
+    return searchCommands(query, commands, resultLimit, { indexedCommands });
+  }, [commands, indexedCommands, isOpen, query, resultLimit]);
 
   const safeActiveIndex = useMemo(() => {
     if (results.length === 0) return 0;

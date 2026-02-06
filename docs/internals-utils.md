@@ -7,9 +7,7 @@ This document covers:
 - Keyboard behavior (`hooks/useCommandPalette.ts`)
 - Accessibility semantics in the UI (`components/CommandPalette.tsx`)
 
-Everything here matches the current code.
-
-## 1) Fuzzy search
+<!-- ## 1) Fuzzy search
 
 File: `commandPalette/utils/fuzzySearch.ts`
 
@@ -94,7 +92,126 @@ Non-empty query:
 
 Empty query:
 
-- return all commands sorted by `id`, score is `0`.
+- return all commands sorted by `id`, score is `0`. -->
+
+## 1) Fuzzy search
+
+File: `commandPalette/utils/fuzzySearch.ts`
+
+### Public API
+
+```ts
+export function normalize(text: string): string;
+
+export function buildCommandIndex(commands: Command[]): IndexedCommand[];
+
+export function searchCommands(
+  query: string,
+  commands: Command[],
+  limit?: number,
+  config?: {
+    indexedCommands?: IndexedCommand[];
+    weights?: Partial<SearchWeights>;
+  },
+): SearchResult[];
+```
+
+### Normalization (exact)
+
+`normalize(text)`:
+
+- lowercases
+- trims
+- collapses internal whitespace to a single space
+
+```ts
+text.toLowerCase().trim().replace(/\s+/g, " ");
+```
+
+### Indexing (optimization)
+
+Search supports building a normalized index once and reusing it across keystrokes.
+
+Index structure:
+
+- `normalizedTitle`
+- `normalizedKeywords` (keywords joined with `" "`)
+
+```ts
+export interface IndexedCommand {
+  command: Command;
+  normalizedTitle: string;
+  normalizedKeywords: string;
+}
+```
+
+This avoids repeated normalization work during incremental search and makes the algorithm scale better for large command lists.
+
+### Query tokenization
+
+Queries are split into whitespace-separated tokens:
+
+Example:
+
+- `"git   com"` → `["git", "com"]`
+
+Tokens are scored independently and then combined.
+
+### Matching model (Option B)
+
+Token scoring follows a clear priority model:
+
+1. Prefix match (`candidate.startsWith(token)`)
+2. Substring match (`candidate.includes(token)`)
+3. Subsequence fallback (linear scan)
+
+Subsequence matching is only used as a fallback so it cannot outrank true prefix/substring matches.
+
+### Scoring
+
+Each token is scored against both title and keywords:
+
+- title weight: 0.7
+- keyword weight: 0.3
+
+The final score is computed using:
+
+- average token relevance score
+- token coverage bonus (commands matching more tokens rank higher)
+
+The default scoring config is:
+
+```ts
+{
+  titleWeight: 0.7,
+  keywordWeight: 0.3,
+
+  prefixScore: 1.0,
+  substringScore: 0.8,
+
+  maxSubsequenceScore: 0.6,
+
+  coverageWeight: 0.15,
+  relevanceWeight: 0.85,
+}
+```
+
+All scores are clamped to the range `0..1`.
+
+### Sorting and stability
+
+Non-empty query:
+
+- sort by `score` (descending)
+- tie-break by `command.id` (ascending)
+
+Empty query:
+
+- return all commands sorted by `id`, score is `0`
+
+### Immutability guarantee
+
+`searchCommands` never mutates the input `commands` array (including the empty query case). It always sorts a copy."
 
 ## 2) Focus trap
 
