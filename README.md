@@ -1,73 +1,140 @@
-# React + TypeScript + Vite
+# Command Palette
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A VS Code–style command palette feature for React + TypeScript.
 
-Currently, two official plugins are available:
+Implemented features:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Config-driven commands (`CommandConfig[]`)
+- Hydration into runtime commands with executable handlers
+- In-house fuzzy subsequence search
+- Minimal focus trap utility
+- Accessible dialog + listbox semantics with `aria-activedescendant`
+- Keyboard support (Arrow keys, Enter, Escape)
+- Optional global hotkey: `Ctrl+K` or `Cmd+K`
+- Toast demo handler (`handlerConfig.type: "toast"`)
 
-## React Compiler
+This README describes what exists in `commandPalette/` today.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Install / setup (local development)
 
-## Expanding the ESLint configuration
+### Versions used in this app
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+This repository is based on the standard **Vite + React + TypeScript** setup.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+├── react@19.2.4
+├── typescript@5.9.3
+├── react-dom@19.2.4
+└── vite@7.3.1
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Runtime requirements
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- **Node.js:** 20+ (recommended: latest LTS)
+- **Package manager:** npm (or pnpm/yarn if you prefer)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+> If you use `nvm`, you can pin a specific Node version by adding a `.nvmrc` file (e.g., `20` or `22`).
+
+### Install and run
+
+```bash
+npm install
+npm run dev
 ```
+
+### Build and preview
+
+```bash
+npm run build
+npm run preview
+```
+
+## Running tests
+
+This project uses **Vitest**.
+
+Run the full test suite once:
+
+```bash
+npm test
+```
+
+Run tests in watch mode:
+
+```bash
+npm run test:watch
+```
+
+## Quick integration
+
+This feature expects:
+
+- React + TypeScript
+- Tailwind classes are used in the component markup (you can replace them if needed)
+- A Toast hook at `@shared/components/Toast` that provides:
+
+```ts
+type UseToastReturn = {
+  addToast: (message: string, durationMs?: number) => void;
+};
+```
+
+The command palette uses `addToast` through an adapter.
+
+```tsx
+import { useState } from "react";
+import { CommandPalette } from "./commandPalette/components/CommandPalette";
+import { SAMPLE_COMMANDS } from "./commandPalette/data/commands";
+import { useGlobalCommandPaletteHotkey } from "./commandPalette/hooks/useGlobalCommandPaletteHotkey";
+
+export function App() {
+  const [open, setOpen] = useState(false);
+
+  useGlobalCommandPaletteHotkey({
+    onTrigger: () => setOpen((v) => !v),
+  });
+
+  return (
+    <CommandPalette
+      isOpen={open}
+      onClose={() => setOpen(false)}
+      commandsConfig={SAMPLE_COMMANDS}
+    />
+  );
+}
+```
+
+## Where to edit things
+
+- Add/edit commands: `commandPalette/data/commands.ts`
+- UI: `commandPalette/components/CommandPalette.tsx`
+- Keyboard + execution: `commandPalette/hooks/useCommandPalette.ts`
+- Global hotkey: `commandPalette/hooks/useGlobalCommandPaletteHotkey.ts`
+- Fuzzy search: `commandPalette/utils/fuzzySearch.ts`
+- Focus trap: `commandPalette/utils/focusTrap.ts`
+- Hydration + handler registry: `commandPalette/utils/hydrateCommands.ts`
+- Adapter(s): `commandPalette/adapters/toastAdapter.ts`
+
+## Scale strategy (current design)
+
+- Commands are plain objects (serializable), so they can later be loaded from a file or API.
+- Hydration attaches runtime behavior (handlers) without putting functions in configs.
+- Integrations are isolated behind adapters (today: Toast).
+- Handler types are selected by `handlerConfig.type` through a small registry.
+  - Built-in handler: `toast`
+  - Extension point: `registerHandler(type, factory)` in `hydrateCommands.ts`
+
+## Future scope (not implemented)
+
+These fit the current architecture but do not exist in code today:
+
+- Highlight matched characters in results (requires search to return match positions).
+- Group commands into sections (would add a `group?: string` field to configs).
+- Command List virtualization using `react-virtualized` npm package.
+- Recently used / history section (store executed IDs and render a "Recent" block).
+- Add reliable Backdrop click-to-close.
+- More handler types:
+  - navigation (router)
+  - clipboard
+  - API calls
+  - open another modal
