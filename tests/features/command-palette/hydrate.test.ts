@@ -3,9 +3,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   hydrateCommands,
   registerHandler,
-} from "../../../src/features/command-palette/hydrate";
-import { MockToastService } from "../../../src/services/toast";
-import type { CommandConfig } from "../../../src/features/command-palette/types";
+} from "@features/command-palette/hydrate";
+import { MockToastService } from "@services/toast";
+import type { CommandConfig } from "@features/command-palette/types";
 
 describe("hydrateCommands", () => {
   let mockToast: MockToastService;

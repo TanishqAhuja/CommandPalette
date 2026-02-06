@@ -1,9 +1,17 @@
-import type { CommandConfig, Command, HandlerConfig, HandlerContext } from './types'
+import type {
+  CommandConfig,
+  Command,
+  HandlerConfig,
+  HandlerContext,
+} from "./types";
 
 /**
  * Handler factory: takes handler config and context, returns executable handler.
  */
-type HandlerFactory = (config: HandlerConfig, context: HandlerContext) => () => void
+type HandlerFactory = (
+  config: HandlerConfig,
+  context: HandlerContext,
+) => () => void;
 
 /**
  * Handler registry: maps handler type names to factory functions.
@@ -12,14 +20,14 @@ type HandlerFactory = (config: HandlerConfig, context: HandlerContext) => () => 
 const handlerRegistry: Record<string, HandlerFactory> = {
   toast: (config, context) => {
     // Type guard to ensure we have the right config shape
-    if (config.type !== 'toast') {
-      throw new Error('Invalid handler config for toast handler')
+    if (config.type !== "toast") {
+      throw new Error("Invalid handler config for toast handler");
     }
     return () => {
-      context.toast.show(config.message, config.duration ?? 3000)
-    }
+      context.toast.show(config.message, config.duration ?? 3000);
+    };
   },
-}
+};
 
 /**
  * Hydrate commands from JSON-serializable configs into executable Commands.
@@ -27,13 +35,13 @@ const handlerRegistry: Record<string, HandlerFactory> = {
  */
 export function hydrateCommands(
   configs: CommandConfig[],
-  context: HandlerContext
+  context: HandlerContext,
 ): Command[] {
   return configs.map((config) => {
-    const handlerFactory = handlerRegistry[config.handlerConfig.type]
+    const handlerFactory = handlerRegistry[config.handlerConfig.type];
 
     if (!handlerFactory) {
-      throw new Error(`Unknown handler type: ${config.handlerConfig.type}`)
+      throw new Error(`Unknown handler type: ${config.handlerConfig.type}`);
     }
 
     return {
@@ -43,17 +51,14 @@ export function hydrateCommands(
       shortcut: config.shortcut,
       description: config.description,
       handler: handlerFactory(config.handlerConfig, context),
-    }
-  })
+    };
+  });
 }
 
 /**
  * Register a custom handler factory that can be used in command configs.
  * Allows extending handler types without modifying existing code.
  */
-export function registerHandler(
-  type: string,
-  factory: HandlerFactory
-): void {
-  handlerRegistry[type] = factory
+export function registerHandler(type: string, factory: HandlerFactory): void {
+  handlerRegistry[type] = factory;
 }

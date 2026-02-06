@@ -4,7 +4,7 @@
  * or a custom implementation.
  */
 export interface ToastService {
-  show: (message: string, duration?: number) => void
+  show: (message: string, duration?: number) => void;
 }
 
 /**
@@ -13,7 +13,7 @@ export interface ToastService {
  */
 export class SimpleToastService implements ToastService {
   show(message: string, _duration?: number): void {
-    console.log(`[Toast] ${message}`)
+    console.log(`[Toast] ${message}`);
   }
 }
 
@@ -21,13 +21,13 @@ export class SimpleToastService implements ToastService {
  * Mock toast service for testing.
  */
 export class MockToastService implements ToastService {
-  calls: Array<{ message: string; duration?: number }> = []
+  calls: Array<{ message: string; duration?: number }> = [];
 
   show(message: string, duration?: number): void {
-    this.calls.push({ message, duration })
+    this.calls.push({ message, duration });
   }
 
   reset(): void {
-    this.calls = []
+    this.calls = [];
   }
 }
