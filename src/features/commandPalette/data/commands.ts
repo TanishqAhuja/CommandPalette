@@ -1,18 +1,18 @@
-import type { CommandConfig } from "./types";
+import type { CommandConfig } from "../commandPalette.types";
 
 /**
  * Example command configurations.
  * These are JSON-serializable and can be loaded from an API or config file.
  */
-export const EXAMPLE_COMMANDS: CommandConfig[] = [
-  {
-    id: "cmd.palette.open",
-    title: "Toggle Command Palette",
-    keywords: ["command", "palette", "open"],
-    shortcut: "Cmd+K",
-    description: "Open or close the command palette",
-    handlerConfig: { type: "toast", message: "Opening command palette..." },
-  },
+export const SAMPLE_COMMANDS: CommandConfig[] = [
+  //   {
+  //     id: "cmd.palette.open",
+  //     title: "Toggle Command Palette",
+  //     keywords: ["command", "palette", "open"],
+  //     shortcut: "Cmd+K",
+  //     description: "Open or close the command palette",
+  //     handlerConfig: { type: "toast", message: "Opening command palette..." },
+  //   },
   {
     id: "file.new",
     title: "New File",

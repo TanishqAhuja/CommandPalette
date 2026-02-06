@@ -18,12 +18,8 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
-      "@services/*": ["src/services/*"],
       "@features/*": ["src/features/*"],
-      "@components/*": ["src/components/*"],
-      "@types/*": ["src/types/*"],
-      "@lib/*": ["src/lib/*"],
-      "@assets/*": ["src/assets/*"]
+      "@shared/*": ["src/shared/*"]
     },
 
     /* Linting */

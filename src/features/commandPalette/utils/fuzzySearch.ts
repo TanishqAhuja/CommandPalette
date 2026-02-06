@@ -1,4 +1,4 @@
-import type { Command, SearchResult } from "../types";
+import type { Command, SearchResult } from "../commandPalette.types";
 
 /**
  * Normalized command with pre-computed searchable fields.

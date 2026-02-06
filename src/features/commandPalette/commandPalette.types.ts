@@ -1,11 +1,11 @@
-import type { ToastService } from "@services/toast";
+import type { ToastAdapter } from "./adapters";
 
 /**
  * Handler context: extensible container for any context needed by handlers.
  * Currently contains toast, but can include anything in the future.
  */
 export interface HandlerContext {
-  toast: ToastService;
+  toast: ToastAdapter;
 }
 
 /**

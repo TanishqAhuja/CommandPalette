@@ -3,7 +3,7 @@ import type {
   Command,
   HandlerConfig,
   HandlerContext,
-} from "../types";
+} from "../commandPalette.types";
 
 /**
  * Handler factory: takes handler config and context, returns executable handler.

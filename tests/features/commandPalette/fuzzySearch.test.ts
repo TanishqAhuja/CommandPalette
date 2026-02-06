@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   normalize,
   searchCommands,
-} from "@features/command-palette/utils/fuzzy";
-import type { Command } from "@features/command-palette/types";
+} from "@features/commandPalette/utils/fuzzySearch";
+import type { Command } from "@features/commandPalette/commandPalette.types";
 
 // Mock commands for testing
 const mockCommands: Command[] = [

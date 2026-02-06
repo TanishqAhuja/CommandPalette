@@ -3,15 +3,27 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   hydrateCommands,
   registerHandler,
-} from "@features/command-palette/utils/hydrate";
-import { MockToastService } from "@services/toast";
-import type { CommandConfig } from "@features/command-palette/types";
+} from "@features/commandPalette/utils/hydrateCommands";
+import type { CommandConfig } from "@features/commandPalette/commandPalette.types";
+import type { ToastAdapter } from "@features/commandPalette/adapters";
+
+class MockToastAdapter implements ToastAdapter {
+  calls: Array<{ message: string; duration?: number }> = [];
+
+  show(message: string, duration?: number): void {
+    this.calls.push({ message, duration });
+  }
+
+  reset(): void {
+    this.calls = [];
+  }
+}
 
 describe("hydrateCommands", () => {
-  let mockToast: MockToastService;
+  let mockToast: MockToastAdapter;
 
   beforeEach(() => {
-    mockToast = new MockToastService();
+    mockToast = new MockToastAdapter();
     mockToast.reset();
   });
 

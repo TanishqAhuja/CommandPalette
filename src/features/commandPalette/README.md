@@ -13,12 +13,12 @@ Keyboard-first command execution system with typed, JSON-serializable configurat
 
 ### Service Layer
 
-#### ToastService
+#### ToastAdapter
 
-Responsible for user notifications.
+Responsible for user notifications using commands.
 
 - Location: `src/services/toast.ts`
-- Interface: `ToastService { show(message, duration?) }`
+- Interface: `ToastAdapter { show(message, duration?) }`
 - Implementation: Can be React Toast, custom, or headless for testing.
 
 #### Handler Registry
@@ -57,12 +57,12 @@ duration: 2000
 
 ````typescript
 import { hydrateCommands } from './utils/hydrate'
-import { EXAMPLE_COMMANDS } from './commands'
+import { SAMPLE_COMMANDS } from './commands'
 
-const toastService = useToast() // From your toast service
+const ToastAdapter = useToast() // From your toast service
 
-const commands = hydrateCommands(EXAMPLE_COMMANDS, {
-toast: toastService,
+const commands = hydrateCommands(SAMPLE_COMMANDS, {
+toast: ToastAdapter,
 })
 
 // commands[0].handler() -> executes the toast handler
@@ -145,7 +145,7 @@ fetch(config.endpoint, { method: config.method })
 1. Update \`HandlerContext\` in \`types.ts\`:
    \`\`\`typescript
    export interface HandlerContext {
-   toast: ToastService
+   toast: ToastAdapter
    analytics?: AnalyticsService // NEW
    logger?: LoggerService // NEW
    }
@@ -165,7 +165,7 @@ fetch(config.endpoint, { method: config.method })
 \`\`\`typescript
 // test: Command hydration with mock context
 const mockToast = { show: vi.fn() }
-const commands = hydrateCommands(EXAMPLE_COMMANDS, { toast: mockToast })
+const commands = hydrateCommands(SAMPLE_COMMANDS, { toast: mockToast })
 commands[0].handler()
 expect(mockToast.show).toHaveBeenCalled()
 
