@@ -25,7 +25,7 @@ Responsible for user notifications.
 
 Extensible handler system for different command execution types.
 
-- Location: `src/features/command-palette/hydrate.ts`
+- Location: `src/features/command-palette/utils/hydrate.ts`
 - Supports: `'toast'`, future: `'api'`, `'dialog'`, `'navigation'`, etc.
 - Extension: Use `registerHandler(type, factory)` to add custom handlers.
 
@@ -55,8 +55,8 @@ duration: 2000
 
 ### 2. Hydrate Commands
 
-\`\`\`typescript
-import { hydrateCommands } from './hydrate'
+````typescript
+import { hydrateCommands } from './utils/hydrate'
 import { EXAMPLE_COMMANDS } from './commands'
 
 const toastService = useToast() // From your toast service
@@ -70,8 +70,8 @@ toast: toastService,
 
 ### 3. Register Custom Handlers
 
-\`\`\`typescript
-import { registerHandler } from './hydrate'
+```typescript
+import { registerHandler } from './utils/hydrate'
 
 // Before hydrating commands
 registerHandler('api', (config, context) => {
@@ -182,9 +182,13 @@ return () => context.toast.show('test')
 src/features/command-palette/
 ├── README.md (this file)
 ├── types.ts (interfaces)
-├── hydrate.ts (handler factory + registry)
-└── commands.ts (example commands)
+├── commands.ts (example commands)
+└── utils/
+    ├── index.ts (barrel export)
+    ├── hydrate.ts (handler factory + registry)
+    └── fuzzy.ts (fuzzy search)
 
 src/services/
 └── toast.ts (toast service implementation)
 \`\`\`
+````
