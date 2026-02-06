@@ -39,7 +39,7 @@ commandPalette/
     toastAdapter.ts
 ```
 
-## Public API
+## Feature Breakdown
 
 ### `CommandPalette` component
 

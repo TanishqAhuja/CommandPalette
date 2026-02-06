@@ -13,8 +13,6 @@ Implemented features:
 - Optional global hotkey: `Ctrl+K` or `Cmd+K`
 - Toast demo handler (`handlerConfig.type: "toast"`)
 
-This README describes what exists in `commandPalette/` today.
-
 ## Install / setup (local development)
 
 ### Versions used in this app
@@ -65,7 +63,7 @@ Run tests in watch mode:
 npm run test:watch
 ```
 
-## Quick integration
+## Quick overview
 
 This feature expects:
 
